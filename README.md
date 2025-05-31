@@ -2,7 +2,13 @@
 
 An AI-powered smart daily planner that helps you manage schedules, optimize time allocation, and coordinate with team members through natural language interactions.
 
-![Planify.AI Dashboard - Deployed on Vercel](https://v0-planify-ai-daily-planner-ks45zjuq1.vercel.app/)
+![Planify.AI Dashboard](https://via.placeholder.com/800x400/4F46E5/FFFFFF?text=Planify.AI+Dashboard)
+
+## 🚀 Deployment
+
+### Deployed to Vercel
+
+1. View the application on https://v0-planify-ai-daily-planner-ks45zjuq1.vercel.app/
 
 ## 🚀 Features
 
@@ -34,7 +40,7 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 \`\`\`bash
-git clone https://github.com/yourusername/planify-ai-planner.git
+git clone https://github.com/isha2404/planify-ai-planner.git
 cd planify-ai-planner
 \`\`\`
 
@@ -135,21 +141,6 @@ npm run lint
 
 npm run type-check
 \`\`\`
-
-## 🚀 Deployment
-
-### Deploy to Vercel (Recommended)
-
-1. Push your code to GitHub
-2. Visit [vercel.com](https://vercel.com)
-3. Import your GitHub repository
-4. Deploy with default settings
-
-### Deploy to Netlify
-
-1. Build the project: `npm run build`
-2. Upload the `out` folder to Netlify
-3. Configure build settings if needed
 
 ## 🔄 Git Workflow
 
