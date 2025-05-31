@@ -2,7 +2,10 @@
 
 An AI-powered smart daily planner that helps you manage schedules, optimize time allocation, and coordinate with team members through natural language interactions.
 
-![Planify.AI Dashboard](https://via.placeholder.com/800x400/4F46E5/FFFFFF?text=Planify.AI+Dashboard)
+![Planify.AI Dashboard]<img width="1721" alt="Main" src="https://github.com/user-attachments/assets/72c0ac66-0ee7-46c6-b220-7cc77c391a98" />
+<img width="1722" alt="AddEvent" src="https://github.com/user-attachments/assets/f2ff6ed7-bc99-4fe4-b33a-f9665ef99374" />
+<img width="1524" alt="AIAssistant" src="https://github.com/user-attachments/assets/23082f4f-7d97-448c-8a4b-6487bec62fe9" />
+<img width="1374" alt="MoreFeatures" src="https://github.com/user-attachments/assets/a3e78e23-d8e9-4c76-9897-e57edadff303" />
 
 ## 🚀 Deployment
 
