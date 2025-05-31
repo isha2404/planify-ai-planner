@@ -171,7 +171,7 @@ git commit -m "Initial commit: Planify.AI smart daily planner"
 
 # Add remote origin (replace with your GitHub repo URL)
 
-git remote add origin https://github.com/yourusername/planify-ai-planner.git
+git remote add origin https://github.com/isha2404/planify-ai-planner.git
 
 # Push to GitHub
 
