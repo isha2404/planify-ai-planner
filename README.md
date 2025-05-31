@@ -2,7 +2,7 @@
 
 An AI-powered smart daily planner that helps you manage schedules, optimize time allocation, and coordinate with team members through natural language interactions.
 
-![Planify.AI Dashboard](https://via.placeholder.com/800x400/4F46E5/FFFFFF?text=Planify.AI+Dashboard)
+![Planify.AI Dashboard - Deployed on Vercel](https://v0-planify-ai-daily-planner-ks45zjuq1.vercel.app/)
 
 ## 🚀 Features
 
