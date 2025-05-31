@@ -153,31 +153,6 @@ npm run type-check
 
 ## 🔄 Git Workflow
 
-### Initial Setup
-
-\`\`\`bash
-
-# Initialize git repository
-
-git init
-
-# Add all files
-
-git add .
-
-# Initial commit
-
-git commit -m "Initial commit: Planify.AI smart daily planner"
-
-# Add remote origin (replace with your GitHub repo URL)
-
-git remote add origin https://github.com/isha2404/planify-ai-planner.git
-
-# Push to GitHub
-
-git push -u origin main
-\`\`\`
-
 ### Regular Development
 
 \`\`\`bash
