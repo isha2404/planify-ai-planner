@@ -1,8 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { Calendar, Clock, MessageSquare, Plus, Settings, Users } from "lucide-react"
+import { Calendar, Clock, LogOut, MessageSquare, Plus, Settings, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
+import { authApi } from "@/lib/services/api"
+import { useAuth } from "@/lib/store/auth"
+import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import CalendarView from "@/components/calendar-view"
@@ -12,6 +16,9 @@ import { mockEvents } from "@/lib/mock-data"
 import { useEvents } from "@/hooks/use-events"
 
 export default function PlanifyDashboard() {
+  const router = useRouter()
+  const { toast } = useToast()
+  const logout = useAuth((state) => state.logout)
   const {
     events,
     selectedEvent,
@@ -65,6 +72,28 @@ export default function PlanifyDashboard() {
             </Button>
             <Button variant="outline" size="sm">
               <Settings className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                try {
+                  await authApi.logout()
+                  logout()
+                  toast({
+                    description: "Logged out successfully"
+                  })
+                  router.push('/login')
+                } catch (error) {
+                  toast({
+                    variant: "destructive",
+                    description: "Error logging out"
+                  })
+                }
+              }}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
             </Button>
           </div>
         </div>

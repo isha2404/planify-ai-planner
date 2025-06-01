@@ -27,10 +27,12 @@ export function useEvents({ initialEvents }: UseEventsProps) {
     setShowEventModal(false)
   }
 
-  const handleEventUpdate = (eventData: Event) => {
-    setEvents(events.map((event) => (event.id === eventData.id ? eventData : event)))
-    setShowEventModal(false)
-    setSelectedEvent(null)
+  const handleEventUpdate = (eventData: Event | Partial<Event>) => {
+    if ('id' in eventData) {
+      setEvents(events.map((event) => (event.id === eventData.id ? {...event, ...eventData} : event)))
+      setShowEventModal(false)
+      setSelectedEvent(null)
+    }
   }
 
   const handleEventDelete = (eventId: string) => {

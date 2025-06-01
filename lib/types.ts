@@ -1,8 +1,8 @@
 export interface Event {
   id: string
   title: string
-  start: string
-  end: string
+  start: string | Date
+  end: string | Date
   type: "meeting" | "focus" | "break" | "personal"
   priority: "high" | "medium" | "low"
   attendees?: string[]
