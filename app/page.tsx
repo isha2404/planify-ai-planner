@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import CalendarView from "@/components/calendar-view";
 import ChatInterface from "@/components/chat-interface";
 import EventModal from "@/components/event-modal";
+import SettingsModal from "@/components/settings-modal";
 import { useEvents } from "@/hooks/use-events";
 import type { Event } from "@/lib/types";
 
@@ -28,6 +29,7 @@ export default function PlanifyDashboard() {
   const { toast } = useToast();
   const logout = useAuth((state) => state.logout);
   const user = useAuth((state) => state.user);
+  const [focusMode, setFocusMode] = useState(false);
 
   // Initialize with empty events array
   const {
@@ -47,9 +49,36 @@ export default function PlanifyDashboard() {
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeView, setActiveView] = useState<"calendar" | "chat">("calendar");
+  const [showSettings, setShowSettings] = useState(false);
+  const [workingHours, setWorkingHours] = useState({
+    startTime: "09:00",
+    endTime: "17:00",
+    workingDays: [1, 2, 3, 4, 5], // Monday to Friday
+  });
 
   const todayEvents = getTodayEvents();
   const upcomingEvents = getUpcomingEvents(3);
+
+  const handleSaveSettings = (newSettings: typeof workingHours) => {
+    setWorkingHours(newSettings);
+    toast({
+      description: "Working hours settings saved successfully.",
+    });
+  };
+
+  const toggleFocusMode = () => {
+    setFocusMode((prev) => !prev);
+    toast({
+      description: focusMode
+        ? "Focus time mode disabled"
+        : "Focus time mode enabled - only focus time events are visible",
+    });
+  };
+
+  // Filter events based on focus mode
+  const filteredEvents = focusMode
+    ? events.filter((event) => event.type === "focus")
+    : events;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -67,7 +96,9 @@ export default function PlanifyDashboard() {
           </div>
           <div className="flex items-center space-x-4">
             <div className="flex flex-col items-end">
-              <span className="text-sm text-gray-600">Welcome, {user?.name}</span>
+              <span className="text-sm text-gray-600">
+                Welcome, {user?.name}
+              </span>
               <span className="text-xs text-gray-500">
                 {new Date().toLocaleDateString("en-US", {
                   weekday: "long",
@@ -93,7 +124,11 @@ export default function PlanifyDashboard() {
               <MessageSquare className="w-4 h-4 mr-2" />
               AI Assistant
             </Button>
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSettings(true)}
+            >
               <Settings className="w-4 h-4" />
             </Button>
             <Button
@@ -135,15 +170,24 @@ export default function PlanifyDashboard() {
                 <Button
                   className="w-full justify-start"
                   onClick={openCreateEventModal}
+                  disabled={focusMode}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Schedule Event
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant={focusMode ? "default" : "outline"}
+                  className="w-full justify-start"
+                  onClick={toggleFocusMode}
+                >
                   <Clock className="w-4 h-4 mr-2" />
-                  Block Focus Time
+                  {focusMode ? "Exit Focus Time" : "Block Focus Time"}
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled={focusMode}
+                >
                   <Users className="w-4 h-4 mr-2" />
                   Team Meeting
                 </Button>
@@ -256,26 +300,38 @@ export default function PlanifyDashboard() {
         <main className="flex-1 p-6">
           {activeView === "calendar" ? (
             <CalendarView
-              events={events}
+              events={filteredEvents}
               selectedDate={selectedDate}
               onDateSelect={setSelectedDate}
               onEventClick={openEditEventModal}
+              workingHours={workingHours}
             />
           ) : (
-            <ChatInterface events={events} onEventCreate={handleEventCreate} />
+            <ChatInterface
+              events={filteredEvents}
+              onEventCreate={handleEventCreate}
+            />
           )}
         </main>
       </div>
 
-      {/* Event Modal */}
+      {/* Modals */}
       {showEventModal && (
         <EventModal
           event={selectedEvent}
           onSave={selectedEvent ? handleEventUpdate : handleEventCreate}
           onDelete={selectedEvent ? handleEventDelete : undefined}
           onClose={closeEventModal}
+          isFocusMode={focusMode}
         />
       )}
+
+      <SettingsModal
+        isOpen={showSettings}
+        onOpenChange={setShowSettings}
+        settings={workingHours}
+        onSave={handleSaveSettings}
+      />
     </div>
   );
 }

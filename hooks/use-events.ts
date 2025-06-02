@@ -152,7 +152,10 @@ export function useEvents({ initialEvents }: UseEventsProps) {
       } catch (error) {
         console.error("Error updating event:", error);
         if (error instanceof Error) {
-          if (error.message === "Not authenticated" || error.message === "No auth token found") {
+          if (
+            error.message === "Not authenticated" ||
+            error.message === "No auth token found"
+          ) {
             window.location.href = "/login";
             return;
           }
@@ -164,7 +167,8 @@ export function useEvents({ initialEvents }: UseEventsProps) {
         } else {
           toast({
             title: "Error",
-            description: "An unexpected error occurred while updating the event",
+            description:
+              "An unexpected error occurred while updating the event",
             variant: "destructive",
           });
         }
