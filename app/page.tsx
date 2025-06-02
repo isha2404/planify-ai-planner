@@ -1,28 +1,40 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Calendar, Clock, LogOut, MessageSquare, Plus, Settings, Users } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
-import { authApi } from "@/lib/services/api"
-import { useAuth } from "@/lib/store/auth"
-import { useRouter } from "next/navigation"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import CalendarView from "@/components/calendar-view"
-import ChatInterface from "@/components/chat-interface"
-import EventModal from "@/components/event-modal"
-import { mockEvents } from "@/lib/mock-data"
-import { useEvents } from "@/hooks/use-events"
+import { useState, useEffect } from "react";
+import {
+  Calendar,
+  Clock,
+  LogOut,
+  MessageSquare,
+  Plus,
+  Settings,
+  Users,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { authApi } from "@/lib/services/api";
+import { useAuth } from "@/lib/store/auth";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import CalendarView from "@/components/calendar-view";
+import ChatInterface from "@/components/chat-interface";
+import EventModal from "@/components/event-modal";
+import { useEvents } from "@/hooks/use-events";
+import type { Event } from "@/lib/types";
 
 export default function PlanifyDashboard() {
-  const router = useRouter()
-  const { toast } = useToast()
-  const logout = useAuth((state) => state.logout)
+  const router = useRouter();
+  const { toast } = useToast();
+  const logout = useAuth((state) => state.logout);
+  const user = useAuth((state) => state.user);
+
+  // Initialize with empty events array
   const {
     events,
     selectedEvent,
     showEventModal,
+    isLoading,
     handleEventCreate,
     handleEventUpdate,
     handleEventDelete,
@@ -31,13 +43,13 @@ export default function PlanifyDashboard() {
     closeEventModal,
     getTodayEvents,
     getUpcomingEvents,
-  } = useEvents({ initialEvents: mockEvents })
+  } = useEvents({ initialEvents: [] });
 
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [activeView, setActiveView] = useState<"calendar" | "chat">("calendar")
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [activeView, setActiveView] = useState<"calendar" | "chat">("calendar");
 
-  const todayEvents = getTodayEvents()
-  const upcomingEvents = getUpcomingEvents(3)
+  const todayEvents = getTodayEvents();
+  const upcomingEvents = getUpcomingEvents(3);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -54,6 +66,17 @@ export default function PlanifyDashboard() {
             </Badge>
           </div>
           <div className="flex items-center space-x-4">
+            <div className="flex flex-col items-end">
+              <span className="text-sm text-gray-600">Welcome, {user?.name}</span>
+              <span className="text-xs text-gray-500">
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
             <Button
               variant={activeView === "calendar" ? "default" : "outline"}
               size="sm"
@@ -73,22 +96,22 @@ export default function PlanifyDashboard() {
             <Button variant="outline" size="sm">
               <Settings className="w-4 h-4" />
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={async () => {
                 try {
-                  await authApi.logout()
-                  logout()
+                  await authApi.logout();
+                  logout();
                   toast({
-                    description: "Logged out successfully"
-                  })
-                  router.push('/login')
+                    description: "Logged out successfully",
+                  });
+                  router.push("/login");
                 } catch (error) {
                   toast({
                     variant: "destructive",
-                    description: "Error logging out"
-                  })
+                    description: "Error logging out",
+                  });
                 }
               }}
             >
@@ -105,9 +128,14 @@ export default function PlanifyDashboard() {
           <div className="p-6">
             {/* Quick Actions */}
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Quick Actions</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                Quick Actions
+              </h3>
               <div className="space-y-2">
-                <Button className="w-full justify-start" onClick={openCreateEventModal}>
+                <Button
+                  className="w-full justify-start"
+                  onClick={openCreateEventModal}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Schedule Event
                 </Button>
@@ -139,8 +167,15 @@ export default function PlanifyDashboard() {
                         <div>
                           <p className="font-medium text-sm">{event.title}</p>
                           <p className="text-xs text-gray-500">
-                            {new Date(event.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} -
-                            {new Date(event.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {new Date(event.start).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}{" "}
+                            -
+                            {new Date(event.end).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </p>
                         </div>
                         <Badge
@@ -148,8 +183,8 @@ export default function PlanifyDashboard() {
                             event.priority === "high"
                               ? "destructive"
                               : event.priority === "medium"
-                                ? "default"
-                                : "secondary"
+                              ? "default"
+                              : "secondary"
                           }
                           className="text-xs"
                         >
@@ -159,14 +194,18 @@ export default function PlanifyDashboard() {
                     </Card>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500">No events scheduled for today</p>
+                  <p className="text-sm text-gray-500">
+                    No events scheduled for today
+                  </p>
                 )}
               </div>
             </div>
 
             {/* Upcoming Events */}
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Upcoming Events</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                Upcoming Events
+              </h3>
               <div className="space-y-2">
                 {upcomingEvents.map((event) => (
                   <Card
@@ -178,7 +217,10 @@ export default function PlanifyDashboard() {
                       <p className="font-medium text-sm">{event.title}</p>
                       <p className="text-xs text-gray-500">
                         {new Date(event.start).toLocaleDateString()} at{" "}
-                        {new Date(event.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(event.start).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
                   </Card>
@@ -188,7 +230,9 @@ export default function PlanifyDashboard() {
 
             {/* Availability Status */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Availability</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                Availability
+              </h3>
               <Card className="p-3">
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -197,7 +241,10 @@ export default function PlanifyDashboard() {
                 <p className="text-xs text-gray-500 mt-1">
                   Next meeting:{" "}
                   {upcomingEvents[0]
-                    ? new Date(upcomingEvents[0].start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    ? new Date(upcomingEvents[0].start).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
                     : "No upcoming meetings"}
                 </p>
               </Card>
@@ -230,5 +277,5 @@ export default function PlanifyDashboard() {
         />
       )}
     </div>
-  )
+  );
 }

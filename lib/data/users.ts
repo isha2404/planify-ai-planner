@@ -1,46 +1,59 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+// @ts-ignore
+import { Pool } from "pg";
 
 export interface User {
-  id: string
-  email: string
-  password: string
-  name: string
+  id: string;
+  email: string;
+  password: string;
+  name: string;
 }
 
-const USERS_FILE = path.resolve(process.cwd(), 'lib/data/users.json')
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl:
+    process.env.NODE_ENV === "production"
+      ? {
+          rejectUnauthorized: false,
+        }
+      : undefined,
+});
 
 export async function getAllUsers(): Promise<User[]> {
-  try {
-    const data = await fs.readFile(USERS_FILE, 'utf-8')
-    return JSON.parse(data)
-  } catch (err) {
-    // If file doesn't exist, return empty array
-    return []
-  }
+  const { rows } = await pool.query(
+    "SELECT id, email, password, name FROM users"
+  );
+  return rows;
 }
 
-export async function saveAllUsers(users: User[]): Promise<void> {
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8')
+export async function findUserByEmail(
+  email: string
+): Promise<User | undefined> {
+  const { rows } = await pool.query(
+    "SELECT id, email, password, name FROM users WHERE email = $1",
+    [email]
+  );
+  return rows[0];
 }
 
-export async function findUserByEmail(email: string): Promise<User | undefined> {
-  const users = await getAllUsers()
-  return users.find((u) => u.email === email)
+export async function validateUser(
+  email: string,
+  password: string
+): Promise<User | undefined> {
+  const { rows } = await pool.query(
+    "SELECT id, email, password, name FROM users WHERE email = $1 AND password = $2",
+    [email, password]
+  );
+  return rows[0];
 }
 
-export async function validateUser(email: string, password: string): Promise<User | undefined> {
-  const users = await getAllUsers()
-  return users.find((u) => u.email === email && u.password === password)
-}
-
-export async function addUser(user: Omit<User, 'id'>): Promise<User> {
-  const users = await getAllUsers()
-  const newUser: User = {
-    ...user,
-    id: Math.random().toString(36).substring(2, 10),
-  }
-  users.push(newUser)
-  await saveAllUsers(users)
-  return newUser
+export async function addUser(user: Omit<User, "id">): Promise<User> {
+  const { rows } = await pool.query(
+    "INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id, email, password, name",
+    [user.email, user.password, user.name]
+  );
+  return rows[0];
 }

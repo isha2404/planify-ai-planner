@@ -20,15 +20,24 @@ export function useCalendar({ events, initialDate = new Date() }: UseCalendarPro
   })
 
   const navigateDate = (direction: "prev" | "next") => {
-    setState((prev) => {
-      const newDate = new Date(prev.selectedDate)
-      if (prev.viewMode === "day") {
-        newDate.setDate(newDate.getDate() + (direction === "next" ? 1 : -1))
-      } else {
-        newDate.setDate(newDate.getDate() + (direction === "next" ? 7 : -7))
-      }
-      return { ...prev, selectedDate: newDate }
-    })
+    const newDate = new Date(state.selectedDate);
+    const offset = direction === "next" ? 1 : -1;
+    
+    if (state.viewMode === "week") {
+      // In week view, move by 7 days
+      const weekStart = new Date(state.selectedDate);
+      const currentDay = weekStart.getDay();
+      // Adjust to start of current week (Monday)
+      weekStart.setDate(weekStart.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+      // Move to next/previous week
+      newDate.setDate(weekStart.getDate() + (offset * 7));
+    } else {
+      // In day view, move by 1 day
+      newDate.setDate(newDate.getDate() + offset);
+    }
+    
+    setState((prev) => ({ ...prev, selectedDate: newDate }));
+    return newDate
   }
 
   const setViewMode = (viewMode: "day" | "week") => {
@@ -40,17 +49,31 @@ export function useCalendar({ events, initialDate = new Date() }: UseCalendarPro
   }
 
   const getWeekDates = useMemo(() => {
-    const week = []
-    const startOfWeek = new Date(state.selectedDate)
-    startOfWeek.setDate(state.selectedDate.getDate() - state.selectedDate.getDay())
-
+    const dates = [];
+    const currentDate = new Date(state.selectedDate);
+    const currentDay = currentDate.getDay();
+    
+    // Calculate the start of the week (Monday)
+    const startOfWeek = new Date(currentDate);
+    startOfWeek.setDate(currentDate.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+    
+    // Get 7 days starting from Monday
     for (let i = 0; i < 7; i++) {
-      const day = new Date(startOfWeek)
-      day.setDate(startOfWeek.getDate() + i)
-      week.push(day)
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      dates.push(date);
     }
-    return week
-  }, [state.selectedDate])
+    return dates
+  }, [state.selectedDate]) // Recalculate when selected date changes
+
+  const isToday = (date: Date) => {
+    const today = new Date()
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    )
+  }
 
   const getEventsForDate = (date: Date) => {
     return events
@@ -58,30 +81,48 @@ export function useCalendar({ events, initialDate = new Date() }: UseCalendarPro
         const eventDate = new Date(event.start)
         return eventDate.toDateString() === date.toDateString()
       })
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-  }
-
-  const getTimeSlots = () => {
-    const slots = []
-    for (let hour = 6; hour < 22; hour++) {
-      slots.push({
-        time: `${hour.toString().padStart(2, "0")}:00`,
-        hour,
+      .sort((a, b) => {
+        // First, compare by start time
+        const timeCompare = new Date(a.start).getTime() - new Date(b.start).getTime();
+        if (timeCompare !== 0) return timeCompare;
+        
+        // If start times are equal, sort by priority (high > medium > low)
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        const priorityCompare = priorityOrder[a.priority] - priorityOrder[b.priority];
+        if (priorityCompare !== 0) return priorityCompare;
+        
+        // If priorities are equal, sort alphabetically by title
+        return a.title.localeCompare(b.title);
       })
-    }
-    return slots
   }
 
   const getEventPosition = (event: Event) => {
     const start = new Date(event.start)
     const end = new Date(event.end)
-    const startHour = start.getHours() + start.getMinutes() / 60
-    const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+
+    // Calculate position based on 15-minute intervals (each slot is 60px height)
+    const minutesFromMidnight = start.getHours() * 60 + start.getMinutes()
+    const duration = (end.getTime() - start.getTime()) / (1000 * 60) // duration in minutes
+
+    const slotHeight = 60 // height of each hour slot in pixels
+    const pixelsPerMinute = slotHeight / 60
 
     return {
-      top: `${Math.max(0, (startHour - 6) * 60)}px`,
-      height: `${duration * 60}px`,
+      top: `${minutesFromMidnight * pixelsPerMinute}px`,
+      height: `${duration * pixelsPerMinute}px`,
     }
+  }
+
+  const getTimeSlots = () => {
+    const slots = []
+    for (let i = 0; i < 24; i++) {
+      const hour = i.toString().padStart(2, "0")
+      slots.push({
+        time: `${hour}:00`,
+        height: 60, // Each slot is 60px high
+      })
+    }
+    return slots
   }
 
   const formatDate = (date: Date) => {
@@ -104,5 +145,6 @@ export function useCalendar({ events, initialDate = new Date() }: UseCalendarPro
     getTimeSlots,
     getEventPosition,
     formatDate,
+    isToday,
   }
 }
