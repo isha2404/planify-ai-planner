@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Calendar,
   Clock,
@@ -34,6 +34,7 @@ export default function PlanifyDashboard() {
   // Initialize with empty events array
   const {
     events,
+    setEvents,
     selectedEvent,
     showEventModal,
     isLoading,
@@ -79,6 +80,47 @@ export default function PlanifyDashboard() {
   const filteredEvents = focusMode
     ? events.filter((event) => event.type === "focus")
     : events;
+
+  // Add refs for access tokens (for demo purposes)
+  const googleTokenRef = useRef<HTMLInputElement>(null);
+  const outlookTokenRef = useRef<HTMLInputElement>(null);
+
+  // Add sync handler
+  const handleSyncCalendars = async () => {
+    const googleAccessToken = googleTokenRef.current?.value || "";
+    const outlookAccessToken = outlookTokenRef.current?.value || "";
+    if (!googleAccessToken && !outlookAccessToken) {
+      toast({ description: "Please provide at least one access token." });
+      return;
+    }
+    try {
+      const response = await fetch("/api/events/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ googleAccessToken, outlookAccessToken }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to sync events");
+      }
+      const data = await response.json();
+      if (data.events) {
+        // Merge with existing events (avoid duplicates by id)
+        const merged = [
+          ...events,
+          ...data.events.filter(
+            (e: Event) => !events.some((ev) => ev.id === e.id)
+          ),
+        ];
+        setEvents(merged);
+        toast({ description: "Events synchronized successfully!" });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        description: "Error synchronizing events.",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -191,6 +233,26 @@ export default function PlanifyDashboard() {
                   <Users className="w-4 h-4 mr-2" />
                   Team Meeting
                 </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={handleSyncCalendars}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Sync Calendars
+                </Button>
+                <input
+                  ref={googleTokenRef}
+                  type="text"
+                  placeholder="Google Access Token"
+                  className="mt-2 w-full border rounded px-2 py-1 text-xs"
+                />
+                <input
+                  ref={outlookTokenRef}
+                  type="text"
+                  placeholder="Outlook Access Token"
+                  className="mt-2 w-full border rounded px-2 py-1 text-xs"
+                />
               </div>
             </div>
 

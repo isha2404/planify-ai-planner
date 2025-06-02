@@ -250,6 +250,7 @@ export function useEvents({ initialEvents }: UseEventsProps) {
 
   return {
     events,
+    setEvents, // Expose setEvents for external updates
     selectedEvent,
     showEventModal,
     isLoading,
