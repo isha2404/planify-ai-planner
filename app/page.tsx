@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Calendar,
   Clock,
@@ -21,8 +21,8 @@ import CalendarView from "@/components/calendar-view";
 import ChatInterface from "@/components/chat-interface";
 import EventModal from "@/components/event-modal";
 import SettingsModal from "@/components/settings-modal";
-import { CalendarConnect } from "@/components/calendar-connect";
 import { useEvents } from "@/hooks/use-events";
+import { initiateGoogleAuth } from "@/lib/services/google-calendar";
 import type { Event } from "@/lib/types";
 
 export default function PlanifyDashboard() {
@@ -31,6 +31,7 @@ export default function PlanifyDashboard() {
   const logout = useAuth((state) => state.logout);
   const user = useAuth((state) => state.user);
   const [focusMode, setFocusMode] = useState(false);
+  const [isGoogleSyncing, setIsGoogleSyncing] = useState(false);
 
   // Initialize with empty events array
   const {
@@ -61,6 +62,94 @@ export default function PlanifyDashboard() {
   const todayEvents = getTodayEvents();
   const upcomingEvents = getUpcomingEvents(3);
 
+  const handleGoogleSync = async () => {
+    try {
+      setIsGoogleSyncing(true);
+      await initiateGoogleAuth();
+    } catch (error) {
+      console.error("Error syncing with Google Calendar:", error);
+      toast({
+        variant: "destructive",
+        description: "Failed to sync with Google Calendar",
+      });
+    } finally {
+      setIsGoogleSyncing(false);
+    }
+  };
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const handleGoogleCallback = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const error = params.get("error");
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          description: `Failed to connect to Google Calendar: ${error}`,
+        });
+        return;
+      }
+
+      if (code) {
+        try {
+          // Exchange code for access token (you'll need to implement this endpoint)
+          const tokenResponse = await fetch("/api/auth/google/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code }),
+          });
+
+          if (!tokenResponse.ok) {
+            throw new Error("Failed to get access token");
+          }
+
+          const { accessToken } = await tokenResponse.json();
+
+          // Sync events
+          const syncResponse = await fetch("/api/events/google-sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            body: JSON.stringify({ googleAccessToken: accessToken }),
+          });
+
+          if (!syncResponse.ok) {
+            throw new Error("Failed to sync events");
+          }
+
+          const { events: googleEvents } = await syncResponse.json();
+
+          // Merge with existing events (avoid duplicates by id)
+          const merged = [
+            ...events,
+            ...googleEvents.filter(
+              (e: Event) => !events.some((ev) => ev.id === e.id)
+            ),
+          ];
+          setEvents(merged);
+          toast({
+            description: "Google Calendar synced successfully!",
+          });
+
+          // Clear the URL parameters
+          window.history.replaceState({}, "", "/");
+        } catch (error) {
+          console.error("Error in Google Calendar sync:", error);
+          toast({
+            variant: "destructive",
+            description: "Error syncing Google Calendar",
+          });
+        }
+      }
+    };
+
+    handleGoogleCallback();
+  }, []);
+
   const handleSaveSettings = (newSettings: typeof workingHours) => {
     setWorkingHours(newSettings);
     toast({
@@ -81,105 +170,6 @@ export default function PlanifyDashboard() {
   const filteredEvents = focusMode
     ? events.filter((event) => event.type === "focus")
     : events;
-
-  // Add refs for access tokens (for demo purposes)
-  const googleTokenRef = useRef<HTMLInputElement>(null);
-  const outlookTokenRef = useRef<HTMLInputElement>(null);
-
-  // Add sync handler
-  const handleSyncCalendars = async () => {
-    const googleAccessToken = googleTokenRef.current?.value || "";
-    const outlookAccessToken = outlookTokenRef.current?.value || "";
-    if (!googleAccessToken && !outlookAccessToken) {
-      toast({ description: "Please provide at least one access token." });
-      return;
-    }
-    try {
-      const response = await fetch("/api/events/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ googleAccessToken, outlookAccessToken }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to sync events");
-      }
-      const data = await response.json();
-      if (data.events) {
-        // Merge with existing events (avoid duplicates by id)
-        const merged = [
-          ...events,
-          ...data.events.filter(
-            (e: Event) => !events.some((ev) => ev.id === e.id)
-          ),
-        ];
-        setEvents(merged);
-        toast({ description: "Events synchronized successfully!" });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        description: "Error synchronizing events.",
-      });
-    }
-  };
-
-  // Add OAuth callback handling
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const provider = params.get("provider");
-      const token = params.get("token");
-      const error = params.get("error");
-
-      if (error) {
-        toast({
-          variant: "destructive",
-          description: `Failed to connect to calendar: ${error}`,
-        });
-        return;
-      }
-
-      if (provider && token) {
-        try {
-          const response = await fetch("/api/events/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ provider, accessToken: token }),
-          });
-
-          if (!response.ok) {
-            throw new Error("Failed to sync events");
-          }
-
-          const data = await response.json();
-          if (data.events) {
-            const merged = [
-              ...events,
-              ...data.events.filter(
-                (e: Event) => !events.some((ev) => ev.id === e.id)
-              ),
-            ];
-            setEvents(merged);
-            toast({
-              description: `${
-                provider.charAt(0).toUpperCase() + provider.slice(1)
-              } Calendar connected and synced successfully!`,
-            });
-          }
-
-          // Clear the URL parameters
-          window.history.replaceState({}, "", "/");
-        } catch (error) {
-          toast({
-            variant: "destructive",
-            description: `Error syncing ${provider} calendar.`,
-          });
-        }
-      }
-    };
-
-    handleOAuthCallback();
-  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -292,41 +282,15 @@ export default function PlanifyDashboard() {
                   <Users className="w-4 h-4 mr-2" />
                   Team Meeting
                 </Button>
-                <CalendarConnect
-                  onConnect={async (provider, token) => {
-                    try {
-                      const response = await fetch("/api/events/sync", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          provider,
-                          accessToken: token,
-                        }),
-                      });
-                      if (!response.ok) {
-                        throw new Error("Failed to sync events");
-                      }
-                      const data = await response.json();
-                      if (data.events) {
-                        const merged = [
-                          ...events,
-                          ...data.events.filter(
-                            (e: Event) => !events.some((ev) => ev.id === e.id)
-                          ),
-                        ];
-                        setEvents(merged);
-                        toast({
-                          description: `${provider} Calendar connected and synced successfully!`,
-                        });
-                      }
-                    } catch (error) {
-                      toast({
-                        variant: "destructive",
-                        description: `Error syncing ${provider} calendar.`,
-                      });
-                    }
-                  }}
-                />
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={handleGoogleSync}
+                  disabled={isGoogleSyncing}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  {isGoogleSyncing ? "Syncing..." : "Sync Google Calendar"}
+                </Button>
               </div>
             </div>
 
