@@ -27,6 +27,8 @@ export const useAuth = create<AuthState>()(
         if (typeof window !== "undefined") {
           const authData = { state: { token, user, isAuthenticated: true } };
           localStorage.setItem("auth-storage", JSON.stringify(authData));
+          // The cookie will be set by the server response
+          document.cookie = `token=${token}; path=/; secure; samesite=lax`;
         }
       },
       logout: () => {

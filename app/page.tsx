@@ -21,6 +21,7 @@ import CalendarView from "@/components/calendar-view";
 import ChatInterface from "@/components/chat-interface";
 import EventModal from "@/components/event-modal";
 import SettingsModal from "@/components/settings-modal";
+import { CalendarConnect } from "@/components/calendar-connect";
 import { useEvents } from "@/hooks/use-events";
 import type { Event } from "@/lib/types";
 
@@ -121,6 +122,64 @@ export default function PlanifyDashboard() {
       });
     }
   };
+
+  // Add OAuth callback handling
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const provider = params.get("provider");
+      const token = params.get("token");
+      const error = params.get("error");
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          description: `Failed to connect to calendar: ${error}`,
+        });
+        return;
+      }
+
+      if (provider && token) {
+        try {
+          const response = await fetch("/api/events/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ provider, accessToken: token }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to sync events");
+          }
+
+          const data = await response.json();
+          if (data.events) {
+            const merged = [
+              ...events,
+              ...data.events.filter(
+                (e: Event) => !events.some((ev) => ev.id === e.id)
+              ),
+            ];
+            setEvents(merged);
+            toast({
+              description: `${
+                provider.charAt(0).toUpperCase() + provider.slice(1)
+              } Calendar connected and synced successfully!`,
+            });
+          }
+
+          // Clear the URL parameters
+          window.history.replaceState({}, "", "/");
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            description: `Error syncing ${provider} calendar.`,
+          });
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -233,25 +292,40 @@ export default function PlanifyDashboard() {
                   <Users className="w-4 h-4 mr-2" />
                   Team Meeting
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={handleSyncCalendars}
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Sync Calendars
-                </Button>
-                <input
-                  ref={googleTokenRef}
-                  type="text"
-                  placeholder="Google Access Token"
-                  className="mt-2 w-full border rounded px-2 py-1 text-xs"
-                />
-                <input
-                  ref={outlookTokenRef}
-                  type="text"
-                  placeholder="Outlook Access Token"
-                  className="mt-2 w-full border rounded px-2 py-1 text-xs"
+                <CalendarConnect
+                  onConnect={async (provider, token) => {
+                    try {
+                      const response = await fetch("/api/events/sync", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          provider,
+                          accessToken: token,
+                        }),
+                      });
+                      if (!response.ok) {
+                        throw new Error("Failed to sync events");
+                      }
+                      const data = await response.json();
+                      if (data.events) {
+                        const merged = [
+                          ...events,
+                          ...data.events.filter(
+                            (e: Event) => !events.some((ev) => ev.id === e.id)
+                          ),
+                        ];
+                        setEvents(merged);
+                        toast({
+                          description: `${provider} Calendar connected and synced successfully!`,
+                        });
+                      }
+                    } catch (error) {
+                      toast({
+                        variant: "destructive",
+                        description: `Error syncing ${provider} calendar.`,
+                      });
+                    }
+                  }}
                 />
               </div>
             </div>
