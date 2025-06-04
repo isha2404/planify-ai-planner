@@ -1,45 +1,58 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { X, Calendar, Clock, Users, AlertCircle, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import type { Event } from "@/lib/types"
+import { useState, useEffect } from "react";
+import { X, Calendar, Clock, Users, AlertCircle, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import type { Event } from "@/lib/types";
 
 interface EventModalProps {
-  event?: Event | null
-  onSave: (eventData: Event | Partial<Event>) => void
-  onDelete?: (eventId: string) => void
-  onClose: () => void
+  event?: Event | null;
+  onSave: (eventData: Event | Partial<Event>) => void;
+  onDelete?: (eventId: string) => void;
+  onClose: () => void;
+  isFocusMode?: boolean;
 }
 
 interface EventFormData {
-  title: string
-  start: string
-  end: string
-  type: Event["type"]
-  priority: Event["priority"]
-  description: string
-  attendees: string[]
+  title: string;
+  start: string;
+  end: string;
+  type: Event["type"];
+  priority: Event["priority"];
+  description: string;
+  attendees: string[];
 }
 
-export default function EventModal({ event, onSave, onDelete, onClose }: EventModalProps) {
+export default function EventModal({
+  event,
+  onSave,
+  onDelete,
+  onClose,
+  isFocusMode,
+}: EventModalProps) {
   const [formData, setFormData] = useState<EventFormData>({
     title: "",
     start: "",
     end: "",
-    type: "meeting",
+    type: isFocusMode ? "focus" : "meeting",
     priority: "medium",
     description: "",
     attendees: [],
-  })
-  const [newAttendee, setNewAttendee] = useState("")
+  });
+  const [newAttendee, setNewAttendee] = useState("");
 
   useEffect(() => {
     if (event) {
@@ -51,13 +64,13 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
         priority: event.priority,
         description: event.description || "",
         attendees: event.attendees || [],
-      })
+      });
     } else {
       // Default to next hour
-      const now = new Date()
-      const nextHour = new Date(now.getTime() + 60 * 60 * 1000)
-      nextHour.setMinutes(0, 0, 0)
-      const endTime = new Date(nextHour.getTime() + 60 * 60 * 1000)
+      const now = new Date();
+      const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
+      nextHour.setMinutes(0, 0, 0);
+      const endTime = new Date(nextHour.getTime() + 60 * 60 * 1000);
 
       setFormData({
         title: "",
@@ -67,71 +80,76 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
         priority: "medium",
         description: "",
         attendees: [],
-      })
+      });
     }
-  }, [event])
+  }, [event]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     const eventData = {
       ...formData,
       start: new Date(formData.start).toISOString(),
       end: new Date(formData.end).toISOString(),
       ...(event && { id: event.id }),
-    }
+    };
 
-    onSave(eventData)
-  }
+    onSave(eventData);
+  };
 
   const addAttendee = () => {
-    if (newAttendee.trim() && !formData.attendees.includes(newAttendee.trim())) {
+    if (
+      newAttendee.trim() &&
+      !formData.attendees.includes(newAttendee.trim())
+    ) {
       setFormData({
         ...formData,
         attendees: [...formData.attendees, newAttendee.trim()],
-      })
-      setNewAttendee("")
+      });
+      setNewAttendee("");
     }
-  }
+  };
 
   const removeAttendee = (attendee: string) => {
     setFormData({
       ...formData,
       attendees: formData.attendees.filter((a) => a !== attendee),
-    })
-  }
+    });
+  };
 
   const getTypeIcon = (type: Event["type"]) => {
     switch (type) {
       case "meeting":
-        return <Users className="w-4 h-4" />
+        return <Users className="w-4 h-4" />;
       case "focus":
-        return <Clock className="w-4 h-4" />
+        return <Clock className="w-4 h-4" />;
       case "break":
-        return <AlertCircle className="w-4 h-4" />
+        return <AlertCircle className="w-4 h-4" />;
       default:
-        return <Calendar className="w-4 h-4" />
+        return <Calendar className="w-4 h-4" />;
     }
-  }
+  };
 
   const getPriorityColor = (priority: Event["priority"]) => {
     switch (priority) {
       case "high":
-        return "destructive"
+        return "destructive";
       case "medium":
-        return "default"
+        return "default";
       case "low":
-        return "secondary"
+        return "secondary";
       default:
-        return "default"
+        return "default";
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold">{event ? "Edit Event" : "Create New Event"}</h2>
+          <h2 className="text-xl font-semibold">
+            {event ? "Edit Event" : "Create New Event"}
+          </h2>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
@@ -144,7 +162,9 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
             <Input
               id="title"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
               placeholder="Enter event title"
               required
             />
@@ -158,7 +178,9 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
                 id="start"
                 type="datetime-local"
                 value={formData.start}
-                onChange={(e) => setFormData({ ...formData, start: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, start: e.target.value })
+                }
                 required
               />
             </div>
@@ -168,7 +190,9 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
                 id="end"
                 type="datetime-local"
                 value={formData.end}
-                onChange={(e) => setFormData({ ...formData, end: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, end: e.target.value })
+                }
                 required
               />
             </div>
@@ -180,7 +204,10 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
               <Label htmlFor="type">Event Type</Label>
               <Select
                 value={formData.type}
-                onValueChange={(value: Event["type"]) => setFormData({ ...formData, type: value })}
+                onValueChange={(value: Event["type"]) =>
+                  setFormData({ ...formData, type: value })
+                }
+                disabled={isFocusMode}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -211,7 +238,9 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
               <Label htmlFor="priority">Priority</Label>
               <Select
                 value={formData.priority}
-                onValueChange={(value: Event["priority"]) => setFormData({ ...formData, priority: value })}
+                onValueChange={(value: Event["priority"]) =>
+                  setFormData({ ...formData, priority: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -233,7 +262,9 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
                 value={newAttendee}
                 onChange={(e) => setNewAttendee(e.target.value)}
                 placeholder="Add attendee name"
-                onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addAttendee())}
+                onKeyPress={(e) =>
+                  e.key === "Enter" && (e.preventDefault(), addAttendee())
+                }
               />
               <Button type="button" onClick={addAttendee} variant="outline">
                 Add
@@ -242,9 +273,17 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
             {formData.attendees.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {formData.attendees.map((attendee) => (
-                  <Badge key={attendee} variant="secondary" className="flex items-center space-x-1">
+                  <Badge
+                    key={attendee}
+                    variant="secondary"
+                    className="flex items-center space-x-1"
+                  >
                     <span>{attendee}</span>
-                    <button type="button" onClick={() => removeAttendee(attendee)} className="ml-1 hover:text-red-600">
+                    <button
+                      type="button"
+                      onClick={() => removeAttendee(attendee)}
+                      className="ml-1 hover:text-red-600"
+                    >
                       <X className="w-3 h-3" />
                     </button>
                   </Badge>
@@ -259,7 +298,9 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
             <Textarea
               id="description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               placeholder="Add event description or notes"
               rows={3}
             />
@@ -269,7 +310,11 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
           <div className="flex justify-between pt-4">
             <div>
               {event && onDelete && (
-                <Button type="button" variant="destructive" onClick={() => onDelete(event.id)}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => onDelete(event.id)}
+                >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete
                 </Button>
@@ -279,11 +324,13 @@ export default function EventModal({ event, onSave, onDelete, onClose }: EventMo
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit">{event ? "Update Event" : "Create Event"}</Button>
+              <Button type="submit">
+                {event ? "Update Event" : "Create Event"}
+              </Button>
             </div>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }
