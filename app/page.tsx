@@ -94,7 +94,7 @@ export default function PlanifyDashboard() {
 
       if (code) {
         try {
-          // Exchange code for access token (you'll need to implement this endpoint)
+          // Exchange code for access token
           const tokenResponse = await fetch("/api/auth/google/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -102,23 +102,35 @@ export default function PlanifyDashboard() {
           });
 
           if (!tokenResponse.ok) {
-            throw new Error("Failed to get access token");
+            const errorData = await tokenResponse.json();
+            throw new Error(errorData.message || "Failed to get access token");
           }
 
           const { accessToken } = await tokenResponse.json();
+
+          // Get the auth token from localStorage
+          const authStorage = localStorage.getItem("auth-storage");
+          if (!authStorage) {
+            throw new Error("Not authenticated");
+          }
+          const { token } = JSON.parse(authStorage).state;
+          if (!token) {
+            throw new Error("No auth token found");
+          }
 
           // Sync events
           const syncResponse = await fetch("/api/events/google-sync", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({ googleAccessToken: accessToken }),
           });
 
           if (!syncResponse.ok) {
-            throw new Error("Failed to sync events");
+            const errorData = await syncResponse.json();
+            throw new Error(errorData.message || "Failed to sync events");
           }
 
           const { events: googleEvents } = await syncResponse.json();
@@ -141,14 +153,17 @@ export default function PlanifyDashboard() {
           console.error("Error in Google Calendar sync:", error);
           toast({
             variant: "destructive",
-            description: "Error syncing Google Calendar",
+            description:
+              error instanceof Error
+                ? error.message
+                : "Error syncing Google Calendar",
           });
         }
       }
     };
 
     handleGoogleCallback();
-  }, []);
+  }, [events, setEvents, toast]);
 
   const handleSaveSettings = (newSettings: typeof workingHours) => {
     setWorkingHours(newSettings);
