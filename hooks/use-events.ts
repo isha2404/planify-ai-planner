@@ -5,10 +5,10 @@ import type { Event } from "@/lib/types";
 import { toast } from "@/components/ui/use-toast";
 
 interface UseEventsProps {
-  initialEvents: Event[];
+  initialEvents?: Event[];
 }
 
-export function useEvents({ initialEvents }: UseEventsProps) {
+export function useEvents({ initialEvents = [] }: UseEventsProps = {}) {
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
@@ -67,21 +67,26 @@ export function useEvents({ initialEvents }: UseEventsProps) {
         throw new Error("No auth token found");
       }
 
+      // Create event with a local ID first
+      const localEvent = {
+        ...eventData,
+        id: `local_${Date.now()}`,
+        title: eventData.title || "",
+        start: eventData.start || new Date().toISOString(),
+        end: eventData.end || new Date(Date.now() + 3600000).toISOString(),
+        type: eventData.type || "meeting",
+        priority: eventData.priority || "medium",
+        attendees: eventData.attendees || [],
+        description: eventData.description || "",
+      };
+
       const response = await fetch("/api/events", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          title: eventData.title || "",
-          start: eventData.start || new Date().toISOString(),
-          end: eventData.end || new Date(Date.now() + 3600000).toISOString(),
-          type: eventData.type || "meeting",
-          priority: eventData.priority || "medium",
-          attendees: eventData.attendees || [],
-          description: eventData.description || "",
-        }),
+        body: JSON.stringify(localEvent),
       });
 
       if (!response.ok) {
@@ -92,15 +97,34 @@ export function useEvents({ initialEvents }: UseEventsProps) {
       const newEvent = await response.json();
       setEvents([...events, newEvent]);
       setShowEventModal(false);
+
+      // Sync to Google Calendar if connected
+      const googleToken = localStorage.getItem("google_access_token");
+      if (googleToken) {
+        try {
+          await fetch("/api/events/google-sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              googleAccessToken: googleToken,
+              syncDirection: "toGoogle",
+            }),
+          });
+        } catch (error) {
+          console.error("Failed to sync with Google Calendar:", error);
+        }
+      }
     } catch (error) {
       console.error("Error creating event:", error);
       if (error instanceof Error) {
         if (error.message === "Not authenticated") {
-          // Handle authentication error (e.g., redirect to login)
           window.location.href = "/login";
           return;
         }
-        throw error; // Re-throw the error to be caught by the UI layer
+        throw error;
       }
     }
   };
@@ -149,6 +173,26 @@ export function useEvents({ initialEvents }: UseEventsProps) {
         toast({
           description: "Event updated successfully",
         });
+
+        // Sync to Google Calendar if connected
+        const googleToken = localStorage.getItem("google_access_token");
+        if (googleToken) {
+          try {
+            await fetch("/api/events/google-sync", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                googleAccessToken: googleToken,
+                syncDirection: "toGoogle",
+              }),
+            });
+          } catch (error) {
+            console.error("Failed to sync with Google Calendar:", error);
+          }
+        }
       } catch (error) {
         console.error("Error updating event:", error);
         if (error instanceof Error) {
@@ -194,27 +238,44 @@ export function useEvents({ initialEvents }: UseEventsProps) {
         },
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.error("Error parsing response:", parseError);
-        throw new Error("Unable to parse server response");
-      }
-
       if (!response.ok) {
-        throw new Error(data?.message || "Failed to delete event");
+        throw new Error("Failed to delete event");
       }
 
+      // Remove from local state
       setEvents(events.filter((event) => event.id !== eventId));
       setShowEventModal(false);
       setSelectedEvent(null);
       toast({
         description: "Event deleted successfully",
       });
+
+      // Sync to Google Calendar if connected
+      const googleToken = localStorage.getItem("google_access_token");
+      if (googleToken) {
+        try {
+          await fetch("/api/events/google-sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              googleAccessToken: googleToken,
+              syncDirection: "toGoogle",
+            }),
+          });
+        } catch (error) {
+          console.error("Failed to sync with Google Calendar:", error);
+        }
+      }
     } catch (error) {
       console.error("Error deleting event:", error);
-      // You might want to show an error message to the user here
+      toast({
+        variant: "destructive",
+        description:
+          error instanceof Error ? error.message : "Failed to delete event",
+      });
     }
   };
 

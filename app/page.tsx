@@ -9,6 +9,7 @@ import {
   Plus,
   Settings,
   Users,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -32,23 +33,27 @@ export default function PlanifyDashboard() {
   const user = useAuth((state) => state.user);
   const [focusMode, setFocusMode] = useState(false);
   const [isGoogleSyncing, setIsGoogleSyncing] = useState(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
-  // Initialize with empty events array
   const {
     events,
     setEvents,
-    selectedEvent,
-    showEventModal,
-    isLoading,
+    loading,
+    error,
     handleEventCreate,
     handleEventUpdate,
     handleEventDelete,
+    handleEventClick,
+    handleEventDrop,
+    handleEventResize,
+    getTodayEvents,
+    getUpcomingEvents,
     openCreateEventModal,
     openEditEventModal,
     closeEventModal,
-    getTodayEvents,
-    getUpcomingEvents,
-  } = useEvents({ initialEvents: [] });
+    showEventModal,
+    selectedEvent,
+  } = useEvents();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeView, setActiveView] = useState<"calendar" | "chat">("calendar");
@@ -147,6 +152,45 @@ export default function PlanifyDashboard() {
             description: "Google Calendar synced successfully!",
           });
 
+          // Run cleanup after successful sync
+          try {
+            setIsCleaningUp(true);
+            const cleanupResponse = await fetch("/api/events/cleanup", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            if (!cleanupResponse.ok) {
+              const errorData = await cleanupResponse.json();
+              throw new Error(errorData.message || "Failed to clean up events");
+            }
+
+            const result = await cleanupResponse.json();
+            if (result.stats.deletedEvents > 0) {
+              toast({
+                description: `Cleaned up ${result.stats.deletedEvents} duplicate events`,
+              });
+
+              // Refresh events after cleanup
+              const updatedEventsResponse = await fetch("/api/events", {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+
+              if (updatedEventsResponse.ok) {
+                const updatedEvents = await updatedEventsResponse.json();
+                setEvents(updatedEvents);
+              }
+            }
+          } catch (error) {
+            console.error("Error during cleanup:", error);
+          } finally {
+            setIsCleaningUp(false);
+          }
+
           // Clear the URL parameters
           window.history.replaceState({}, "", "/");
         } catch (error) {
@@ -164,6 +208,61 @@ export default function PlanifyDashboard() {
 
     handleGoogleCallback();
   }, [events, setEvents, toast]);
+
+  // Add automatic cleanup on page load
+  useEffect(() => {
+    const runCleanup = async () => {
+      try {
+        setIsCleaningUp(true);
+        const authStorage = localStorage.getItem("auth-storage");
+        if (!authStorage) {
+          throw new Error("Not authenticated");
+        }
+        const { token } = JSON.parse(authStorage).state;
+        if (!token) {
+          throw new Error("No auth token found");
+        }
+
+        const response = await fetch("/api/events/cleanup", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to clean up events");
+        }
+
+        const result = await response.json();
+        if (result.stats.deletedEvents > 0) {
+          toast({
+            description: `Automatically cleaned up ${result.stats.deletedEvents} duplicate events`,
+          });
+
+          // Refresh events
+          const updatedEventsResponse = await fetch("/api/events", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (updatedEventsResponse.ok) {
+            const updatedEvents = await updatedEventsResponse.json();
+            setEvents(updatedEvents);
+          }
+        }
+      } catch (error) {
+        console.error("Error during automatic cleanup:", error);
+        // Don't show error toast for automatic cleanup to avoid spamming the user
+      } finally {
+        setIsCleaningUp(false);
+      }
+    };
+
+    runCleanup();
+  }, []); // Empty dependency array means this runs once on mount
 
   const handleSaveSettings = (newSettings: typeof workingHours) => {
     setWorkingHours(newSettings);
@@ -186,6 +285,55 @@ export default function PlanifyDashboard() {
     ? events.filter((event) => event.type === "focus")
     : events;
 
+  const handleCleanup = async () => {
+    try {
+      const authStorage = localStorage.getItem("auth-storage");
+      if (!authStorage) {
+        throw new Error("Not authenticated");
+      }
+      const { token } = JSON.parse(authStorage).state;
+      if (!token) {
+        throw new Error("No auth token found");
+      }
+
+      const response = await fetch("/api/events/cleanup", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to clean up events");
+      }
+
+      const result = await response.json();
+      toast({
+        description: `Cleanup completed: ${result.stats.deletedEvents} duplicate events removed`,
+      });
+
+      // Refresh events
+      const updatedEventsResponse = await fetch("/api/events", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (updatedEventsResponse.ok) {
+        const updatedEvents = await updatedEventsResponse.json();
+        setEvents(updatedEvents);
+      }
+    } catch (error) {
+      console.error("Error cleaning up events:", error);
+      toast({
+        variant: "destructive",
+        description:
+          error instanceof Error ? error.message : "Failed to clean up events",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -199,6 +347,14 @@ export default function PlanifyDashboard() {
             <Badge variant="secondary" className="bg-blue-100 text-blue-800">
               Smart Planner
             </Badge>
+            {isCleaningUp && (
+              <Badge
+                variant="secondary"
+                className="bg-yellow-100 text-yellow-800"
+              >
+                Cleaning up...
+              </Badge>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             <div className="flex flex-col items-end">

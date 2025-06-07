@@ -190,11 +190,18 @@ export default function CalendarView({
                       const columnWidth = 95 / columnCount; // Leave 5% for gaps
                       const columnIndex = eventsBeforeCurrent.length;
 
-                      // Determine event color based on priority
+                      // Determine event color based on priority and date
+                      const isOutOfDate = new Date(event.end) < new Date();
                       const priorityColors = {
-                        high: "bg-red-100 hover:bg-red-200 border-red-500",
-                        medium: "bg-blue-100 hover:bg-blue-200 border-blue-500",
-                        low: "bg-green-100 hover:bg-green-200 border-green-500",
+                        high: isOutOfDate
+                          ? "bg-gray-100 hover:bg-gray-200 border-gray-500"
+                          : "bg-red-100 hover:bg-red-200 border-red-500",
+                        medium: isOutOfDate
+                          ? "bg-gray-100 hover:bg-gray-200 border-gray-500"
+                          : "bg-blue-100 hover:bg-blue-200 border-blue-500",
+                        low: isOutOfDate
+                          ? "bg-gray-100 hover:bg-gray-200 border-gray-500"
+                          : "bg-green-100 hover:bg-green-200 border-green-500",
                       };
 
                       return (
@@ -212,10 +219,18 @@ export default function CalendarView({
                           }}
                           onClick={() => onEventClick(event)}
                         >
-                          <p className="font-medium text-sm truncate">
+                          <p
+                            className={`font-medium text-sm truncate ${
+                              isOutOfDate ? "text-gray-500" : ""
+                            }`}
+                          >
                             {event.title}
                           </p>
-                          <p className="text-xs opacity-75">
+                          <p
+                            className={`text-xs opacity-75 ${
+                              isOutOfDate ? "text-gray-400" : ""
+                            }`}
+                          >
                             {new Date(event.start).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -227,7 +242,11 @@ export default function CalendarView({
                             })}
                           </p>
                           {event.attendees && event.attendees.length > 0 && (
-                            <p className="text-xs opacity-75 mt-1 truncate">
+                            <p
+                              className={`text-xs opacity-75 mt-1 truncate ${
+                                isOutOfDate ? "text-gray-400" : ""
+                              }`}
+                            >
                               {event.attendees.length} attendee
                               {event.attendees.length > 1 ? "s" : ""}
                             </p>
@@ -283,32 +302,43 @@ export default function CalendarView({
                       </p>
                     </div>
                     <div className="space-y-1 min-h-[100px]">
-                      {dateEvents.slice(0, 3).map((event) => (
-                        <div
-                          key={event.id}
-                          className={`p-2 rounded text-xs cursor-pointer
-                            ${
-                              event.priority === "high"
-                                ? "bg-red-100 hover:bg-red-200 text-red-900"
-                                : event.priority === "medium"
-                                ? "bg-blue-100 hover:bg-blue-200 text-blue-900"
-                                : "bg-green-100 hover:bg-green-200 text-green-900"
-                            }
-                          `}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEventClick(event);
-                          }}
-                        >
-                          <p className="font-medium truncate">{event.title}</p>
-                          <p className="opacity-75">
-                            {new Date(event.start).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                        </div>
-                      ))}
+                      {dateEvents.slice(0, 3).map((event) => {
+                        const isOutOfDate = new Date(event.end) < new Date();
+                        return (
+                          <div
+                            key={event.id}
+                            className={`p-2 rounded text-xs cursor-pointer
+                              ${
+                                isOutOfDate
+                                  ? "bg-gray-100 hover:bg-gray-200 text-gray-500"
+                                  : event.priority === "high"
+                                  ? "bg-red-100 hover:bg-red-200 text-red-900"
+                                  : event.priority === "medium"
+                                  ? "bg-blue-100 hover:bg-blue-200 text-blue-900"
+                                  : "bg-green-100 hover:bg-green-200 text-green-900"
+                              }
+                            `}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEventClick(event);
+                            }}
+                          >
+                            <p className="font-medium truncate">
+                              {event.title}
+                            </p>
+                            <p
+                              className={`opacity-75 ${
+                                isOutOfDate ? "text-gray-400" : ""
+                              }`}
+                            >
+                              {new Date(event.start).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        );
+                      })}
                       {dateEvents.length > 3 && (
                         <button
                           className="w-full text-xs text-blue-600 hover:text-blue-800 text-center py-1"
