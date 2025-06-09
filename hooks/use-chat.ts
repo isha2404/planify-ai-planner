@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import type { Event, Message } from "@/lib/types"
+import { getLLMReply } from "@/lib/llm"
+
 
 interface UseChatProps {
   events: Event[]
@@ -149,26 +151,37 @@ export function useChat({ events, onEventCreate }: UseChatProps) {
   }
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return
+  if (!inputValue.trim()) return
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: "user",
-      content: inputValue,
+  const userMessage: Message = {
+    id: Date.now().toString(),
+    type: "user",
+    content: inputValue,
+    timestamp: new Date(),
+  }
+
+  setMessages((prev) => [...prev, userMessage])
+  setInputValue("")
+  setIsTyping(true)
+
+  try {
+    const reply = await getLLMReply(userMessage.content)
+
+    const aiMessage: Message = {
+      id: Date.now().toString() + "-ai",
+      type: "ai",
+      content: reply,
       timestamp: new Date(),
     }
 
-    setMessages((prev) => [...prev, userMessage])
-    setInputValue("")
-    setIsTyping(true)
-
-    // Simulate AI processing delay
-    setTimeout(() => {
-      const aiResponse = processUserMessage(inputValue)
-      setMessages((prev) => [...prev, aiResponse])
-      setIsTyping(false)
-    }, 1000)
+    setMessages((prev) => [...prev, aiMessage])
+  } catch (error) {
+    console.error("LLM 错误：", error)
   }
+
+  setIsTyping(false)
+}
+
 
   const handleActionClick = (message: Message) => {
     if (message.action === "schedule" && message.eventData) {
