@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import type { Event, Message } from "@/lib/types"
+import { getLLMReply } from "@/lib/llm"
+
 
 interface UseChatProps {
   events: Event[]
