@@ -17,6 +17,21 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import type { Event } from "@/lib/types";
+import {
+  findOverlappingEvents,
+  getOverlapSeverity,
+  formatOverlapMessage,
+  type TimeOverlap,
+  autoRescheduleOverlappingEvents,
+} from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle, Info } from "lucide-react";
 
 interface EventModalProps {
   event?: Event | null;
@@ -24,6 +39,8 @@ interface EventModalProps {
   onDelete?: (eventId: string) => void;
   onClose: () => void;
   isFocusMode?: boolean;
+  allEvents?: Event[];
+  workingHours?: { startTime: string; endTime: string; workingDays: number[] };
 }
 
 interface EventFormData {
@@ -41,18 +58,22 @@ export default function EventModal({
   onSave,
   onDelete,
   onClose,
-  isFocusMode,
+  isFocusMode = false,
+  allEvents = [],
+  workingHours,
 }: EventModalProps) {
-  const [formData, setFormData] = useState<EventFormData>({
+  const [formData, setFormData] = useState<Partial<Event>>({
     title: "",
-    start: "",
-    end: "",
-    type: isFocusMode ? "focus" : "meeting",
+    start: new Date().toISOString(),
+    end: new Date(Date.now() + 3600000).toISOString(),
+    type: "meeting",
     priority: "medium",
     description: "",
     attendees: [],
   });
   const [newAttendee, setNewAttendee] = useState("");
+  const [overlappingEvents, setOverlappingEvents] = useState<TimeOverlap[]>([]);
+  const [suggestedTime, setSuggestedTime] = useState<Event | null>(null);
 
   useEffect(() => {
     if (event) {
@@ -84,17 +105,42 @@ export default function EventModal({
     }
   }, [event]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (formData.start && formData.end) {
+      const overlaps = findOverlappingEvents(
+        { ...formData, id: event?.id || "temp" } as Event,
+        allEvents
+      );
+      setOverlappingEvents(overlaps);
+
+      // If there are overlaps, try to find a new time slot
+      if (overlaps.length > 0) {
+        const rescheduledEvent = autoRescheduleOverlappingEvents(
+          { ...formData, id: event?.id || "temp" } as Event,
+          allEvents,
+          workingHours
+        );
+        setSuggestedTime(rescheduledEvent);
+      } else {
+        setSuggestedTime(null);
+      }
+    }
+  }, [formData.start, formData.end, allEvents, event?.id, workingHours]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const eventData = {
-      ...formData,
-      start: new Date(formData.start).toISOString(),
-      end: new Date(formData.end).toISOString(),
-      ...(event && { id: event.id }),
-    };
+    // Check if there are any error-level overlaps
+    const hasErrors = overlappingEvents.some(
+      (overlap) => getOverlapSeverity(overlap) === "error"
+    );
 
-    onSave(eventData);
+    if (hasErrors) {
+      // Show a confirmation dialog or toast here if you want
+      // For now, we'll just proceed with a warning
+    }
+
+    await onSave(formData);
   };
 
   const addAttendee = () => {
@@ -143,19 +189,24 @@ export default function EventModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold">
-            {event ? "Edit Event" : "Create New Event"}
-          </h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
+  const handleUseSuggestedTime = () => {
+    if (suggestedTime) {
+      setFormData((prev) => ({
+        ...prev,
+        start: suggestedTime.start,
+        end: suggestedTime.end,
+      }));
+      setSuggestedTime(null);
+    }
+  };
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{event ? "Edit Event" : "Create Event"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
           <div>
             <Label htmlFor="title">Event Title</Label>
@@ -306,31 +357,77 @@ export default function EventModal({
             />
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-between pt-4">
-            <div>
-              {event && onDelete && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => onDelete(event.id)}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
+          {/* Overlapping events warnings and suggestions */}
+          {overlappingEvents.length > 0 && (
+            <div className="space-y-2">
+              {overlappingEvents.map((overlap, index) => {
+                const severity = getOverlapSeverity(overlap);
+                return (
+                  <Alert
+                    key={index}
+                    variant={severity === "error" ? "destructive" : "default"}
+                    className="text-sm"
+                  >
+                    {severity === "error" ? (
+                      <AlertTriangle className="h-4 w-4" />
+                    ) : (
+                      <Info className="h-4 w-4" />
+                    )}
+                    <AlertDescription>
+                      {formatOverlapMessage(overlap)}
+                    </AlertDescription>
+                  </Alert>
+                );
+              })}
+
+              {/* Show suggestion if available */}
+              {suggestedTime && (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    <p className="mb-2">Would you like to reschedule to:</p>
+                    <p className="font-medium">
+                      {new Date(suggestedTime.start).toLocaleString([], {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {" - "}
+                      {new Date(suggestedTime.end).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={handleUseSuggestedTime}
+                    >
+                      Use Suggested Time
+                    </Button>
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
-            <div className="flex space-x-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end space-x-2">
+            {onDelete && (
+              <Button type="button" variant="destructive" onClick={onDelete}>
+                Delete
               </Button>
-              <Button type="submit">
-                {event ? "Update Event" : "Create Event"}
-              </Button>
-            </div>
+            )}
+            <Button type="submit">
+              {event ? "Save Changes" : "Create Event"}
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,12 +1,14 @@
 export interface Event {
   id: string;
   title: string;
-  start: string | Date;
-  end: string | Date;
-  type: "meeting" | "focus" | "break" | "personal";
-  priority: "high" | "medium" | "low";
-  attendees?: string[];
+  start: string;
+  end: string;
+  type: "meeting" | "focus" | "task";
+  priority: "low" | "medium" | "high";
   description?: string;
+  attendees?: string[];
+  isOwner?: boolean;
+  google_calendar_id?: string;
 }
 
 export interface Availability {

@@ -14,45 +14,94 @@ export function useEvents({ initialEvents = [] }: UseEventsProps = {}) {
   const [showEventModal, setShowEventModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      const authStorage = localStorage.getItem("auth-storage");
+      if (!authStorage) {
+        console.error("Auth storage not found");
+        throw new Error("Not authenticated");
+      }
+
+      const { token } = JSON.parse(authStorage).state;
+      if (!token) {
+        console.error("No auth token found in storage");
+        throw new Error("No auth token found");
+      }
+
+      console.log(
+        "Fetching events with token:",
+        token.substring(0, 10) + "..."
+      );
+      const response = await fetch("/api/events", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to fetch events:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        throw new Error(
+          errorData.message ||
+            `Failed to fetch events: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const fetchedEvents = await response.json();
+      console.log("Successfully fetched events:", fetchedEvents.length);
+      setEvents(fetchedEvents);
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      if (error instanceof Error) {
+        if (
+          error.message === "Not authenticated" ||
+          error.message === "No auth token found"
+        ) {
+          console.log("Redirecting to login page...");
+          window.location.href = "/login";
+          return;
+        }
+        toast({
+          title: "Error fetching events",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error fetching events",
+          description: "An unexpected error occurred while fetching events",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Fetch events when the component mounts
   useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        setIsLoading(true);
-        const authStorage = localStorage.getItem("auth-storage");
-        if (!authStorage) {
-          throw new Error("Not authenticated");
-        }
-
-        const { token } = JSON.parse(authStorage).state;
-        if (!token) {
-          throw new Error("No auth token found");
-        }
-
-        const response = await fetch("/api/events", {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch events");
-        }
-
-        const fetchedEvents = await response.json();
-        setEvents(fetchedEvents);
-      } catch (error) {
-        console.error("Error fetching events:", error);
-        if (error instanceof Error && error.message === "Not authenticated") {
-          window.location.href = "/login";
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchEvents();
+
+    // Set up periodic refresh every 30 seconds
+    const refreshInterval = setInterval(fetchEvents, 30000);
+
+    // Refresh events when the window regains focus
+    const handleFocus = () => {
+      console.log("Window focused, refreshing events...");
+      fetchEvents();
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(refreshInterval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []); // Empty dependency array means this effect runs once on mount
 
   const handleEventCreate = async (eventData: Partial<Event>) => {

@@ -1,17 +1,22 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useCalendar } from "@/hooks/use-calendar";
+import { rescheduleAllOverlappingEvents } from "@/lib/utils";
 import type { Event } from "@/lib/types";
+import { useToast } from "@/components/ui/use-toast";
+import ReschedulePreviewModal from "./reschedule-preview-modal";
 
 interface CalendarViewProps {
   events: Event[];
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
   onEventClick: (event: Event) => void;
+  onEventsUpdate?: (events: Event[]) => void;
   workingHours?: {
     startTime: string;
     endTime: string;
@@ -19,13 +24,76 @@ interface CalendarViewProps {
   };
 }
 
+function calculateEventLayout(
+  events: Event[]
+): Map<string, { column: number; totalColumns: number }> {
+  const layout = new Map<string, { column: number; totalColumns: number }>();
+  const eventGroups: Event[][] = [];
+
+  // Group overlapping events
+  events.forEach((event) => {
+    const eventStart = new Date(event.start).getTime();
+    const eventEnd = new Date(event.end).getTime();
+
+    // Find a group where this event overlaps with all events in the group
+    let foundGroup = false;
+    for (const group of eventGroups) {
+      const overlapsWithAll = group.every((groupEvent) => {
+        const groupStart = new Date(groupEvent.start).getTime();
+        const groupEnd = new Date(groupEvent.end).getTime();
+        return !(eventEnd <= groupStart || eventStart >= groupEnd);
+      });
+
+      if (overlapsWithAll) {
+        group.push(event);
+        foundGroup = true;
+        break;
+      }
+    }
+
+    // If no overlapping group found, create a new one
+    if (!foundGroup) {
+      eventGroups.push([event]);
+    }
+  });
+
+  // Calculate column positions for each group
+  eventGroups.forEach((group) => {
+    // Sort events by start time and priority
+    group.sort((a, b) => {
+      const timeCompare =
+        new Date(a.start).getTime() - new Date(b.start).getTime();
+      if (timeCompare !== 0) return timeCompare;
+
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
+
+    // Assign columns
+    const totalColumns = group.length;
+    group.forEach((event, index) => {
+      layout.set(event.id, {
+        column: index,
+        totalColumns,
+      });
+    });
+  });
+
+  return layout;
+}
+
 export default function CalendarView({
   events,
   selectedDate,
   onDateSelect,
   onEventClick,
+  onEventsUpdate,
   workingHours,
 }: CalendarViewProps) {
+  const { toast } = useToast();
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewEvents, setPreviewEvents] = useState<Event[]>([]);
+
   const {
     viewMode,
     setViewMode,
@@ -36,6 +104,67 @@ export default function CalendarView({
     getEventPosition,
     formatDate,
   } = useCalendar({ events, initialDate: selectedDate });
+
+  const handleRescheduleAll = async () => {
+    try {
+      const rescheduledEvents = rescheduleAllOverlappingEvents(
+        events,
+        workingHours
+      );
+
+      // Count how many events were rescheduled
+      const rescheduledCount = rescheduledEvents.filter((event, index) => {
+        const originalEvent = events[index];
+        return (
+          event.start !== originalEvent.start || event.end !== originalEvent.end
+        );
+      }).length;
+
+      if (rescheduledCount > 0) {
+        // Show preview modal instead of applying changes immediately
+        setPreviewEvents(rescheduledEvents);
+        setShowPreview(true);
+      } else {
+        toast({
+          description: "No overlapping events found to reschedule.",
+        });
+      }
+    } catch (error) {
+      console.error("Error rescheduling events:", error);
+      toast({
+        variant: "destructive",
+        description: "Failed to reschedule events. Please try again.",
+      });
+    }
+  };
+
+  const handleConfirmRescheduling = async () => {
+    try {
+      // Update the events
+      await onEventsUpdate?.(previewEvents);
+
+      toast({
+        description: `Successfully rescheduled ${
+          previewEvents.filter((event, index) => {
+            const originalEvent = events[index];
+            return (
+              event.start !== originalEvent.start ||
+              event.end !== originalEvent.end
+            );
+          }).length
+        } events to resolve conflicts.`,
+      });
+
+      setShowPreview(false);
+      setPreviewEvents([]);
+    } catch (error) {
+      console.error("Error applying rescheduled events:", error);
+      toast({
+        variant: "destructive",
+        description: "Failed to apply rescheduled events. Please try again.",
+      });
+    }
+  };
 
   const timeSlots = getTimeSlots();
 
@@ -78,6 +207,15 @@ export default function CalendarView({
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRescheduleAll}
+            className="flex items-center space-x-2"
+          >
+            <CalendarClock className="w-4 h-4" />
+            <span>Reschedule Conflicts</span>
+          </Button>
           <Button
             variant={viewMode === "day" ? "default" : "outline"}
             size="sm"
@@ -359,6 +497,18 @@ export default function CalendarView({
           </CardContent>
         </Card>
       )}
+
+      {/* Add the preview modal */}
+      <ReschedulePreviewModal
+        isOpen={showPreview}
+        onClose={() => {
+          setShowPreview(false);
+          setPreviewEvents([]);
+        }}
+        onConfirm={handleConfirmRescheduling}
+        originalEvents={events}
+        rescheduledEvents={previewEvents}
+      />
     </div>
   );
 }

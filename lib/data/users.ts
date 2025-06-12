@@ -54,3 +54,18 @@ export async function addUser(user: Omit<User, "id">): Promise<User> {
   );
   return rows[0];
 }
+
+export async function findUsersByEmails(
+  emails: string[]
+): Promise<{ id: string; email: string; name: string }[]> {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT id, email, name FROM users WHERE email = ANY($1)`,
+      [emails]
+    );
+    return rows;
+  } finally {
+    client.release();
+  }
+}

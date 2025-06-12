@@ -334,6 +334,70 @@ export default function PlanifyDashboard() {
     }
   };
 
+  const handleEventsUpdate = async (updatedEvents: Event[]) => {
+    try {
+      // Get auth token
+      const authStorage = localStorage.getItem("auth-storage");
+      if (!authStorage) {
+        throw new Error("Not authenticated");
+      }
+      const { token } = JSON.parse(authStorage).state;
+      if (!token) {
+        throw new Error("No auth token found");
+      }
+
+      // Update all events in the database
+      const response = await fetch("/api/events/bulk-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ events: updatedEvents }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update events");
+      }
+
+      // Update local state
+      setEvents(updatedEvents);
+
+      // Sync to Google Calendar if connected
+      const googleToken = localStorage.getItem("google_access_token");
+      if (googleToken) {
+        try {
+          await fetch("/api/events/google-sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              googleAccessToken: googleToken,
+              syncDirection: "toGoogle",
+            }),
+          });
+        } catch (error) {
+          console.error("Failed to sync with Google Calendar:", error);
+          toast({
+            variant: "destructive",
+            description:
+              "Events updated locally but failed to sync with Google Calendar",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error updating events:", error);
+      toast({
+        variant: "destructive",
+        description:
+          error instanceof Error ? error.message : "Failed to update events",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -575,6 +639,7 @@ export default function PlanifyDashboard() {
               selectedDate={selectedDate}
               onDateSelect={setSelectedDate}
               onEventClick={openEditEventModal}
+              onEventsUpdate={handleEventsUpdate}
               workingHours={workingHours}
             />
           ) : (
@@ -594,6 +659,8 @@ export default function PlanifyDashboard() {
           onDelete={selectedEvent ? handleEventDelete : undefined}
           onClose={closeEventModal}
           isFocusMode={focusMode}
+          allEvents={events}
+          workingHours={workingHours}
         />
       )}
 
